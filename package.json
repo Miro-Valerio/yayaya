@@ -1,15 +1,17 @@
 {
-  "name": "movie-api",
+  "name": "ipon-allowance-api",
   "version": "1.0.0",
-  "private": true,
-  "type": "commonjs",
+  "description": "Backend API for Weekly Allowance & Savings Goals",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node index.js"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js"
   },
   "dependencies": {
     "cors": "^2.8.6",
-    "express": "^4.21.1"
+    "express": "^4.22.1",
+    "install": "^0.13.0",
+    "pat": "^0.0.1",
+    "path": "^0.12.7"
   }
 }

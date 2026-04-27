@@ -1,153 +1,151 @@
-const express = require('express');
-const cors = require('cors');
+const express = require("express");
+const cors = require("cors");
+
 const app = express();
+
+app.use(cors());
+app.use(express.json());
+
+app.get("/", (req, res) => {
+  res.send("Student Budget API is running");
+});
+
+//DATA
+let goals = [];
+let weeks = [];
+
+let goalId = 1;
+let weekId = 1;
+
+// GET all weeks
+app.get("/weeks", (req, res) => {
+  res.json(weeks);
+});
+
+// CREATE week
+app.post("/weeks", (req, res) => {
+  const { weekLabel, allowance, spent, saveTarget } = req.body;
+
+  if (!weekLabel)
+    return res.status(400).json({ error: "Week label required" });
+
+  if (!Number.isFinite(allowance) || allowance <= 0)
+    return res.status(400).json({ error: "Invalid allowance" });
+
+  if (!Number.isFinite(spent) || spent < 0 || spent > allowance)
+    return res.status(400).json({ error: "Invalid spent" });
+
+  const saved = allowance - spent;
+  const metTarget = saved >= saveTarget;
+
+  const week = {
+    id: weekId++,
+    weekLabel,
+    allowance,
+    spent,
+    saved,
+    saveTarget,
+    metTarget,
+    createdAt: new Date()
+  };
+
+  weeks.push(week);
+  res.status(201).json(week);
+});
+
+// GET all goals
+app.get("/goals", (req, res) => {
+  res.json(goals);
+});
+
+// CREATE goal
+app.post("/goals", (req, res) => {
+  const { name, targetAmount } = req.body;
+
+  if (!name)
+    return res.status(400).json({ error: "Goal name required" });
+
+  if (!Number.isFinite(targetAmount) || targetAmount <= 0)
+    return res.status(400).json({ error: "Invalid target amount" });
+
+  const goal = {
+    id: goalId++,
+    name,
+    targetAmount,
+    currentAmount: 0,
+    remaining: targetAmount,
+    progressPercent: 0,
+    achieved: false
+  };
+
+  goals.push(goal);
+  res.status(201).json(goal);
+});
+
+// CONTRIBUTE
+app.post("/goals/:id/contribute", (req, res) => {
+  const id = Number(req.params.id);
+  const { amount } = req.body;
+
+  const goal = goals.find(g => g.id === id);
+  if (!goal)
+    return res.status(404).json({ error: "Goal not found" });
+
+  if (!Number.isFinite(amount) || amount <= 0)
+    return res.status(400).json({ error: "Invalid amount" });
+
+  if (goal.achieved)
+    return res.status(400).json({ error: "Goal already achieved" });
+
+  goal.currentAmount += amount;
+
+  goal.remaining = Math.max(goal.targetAmount - goal.currentAmount, 0);
+  goal.progressPercent = Math.min(
+    (goal.currentAmount / goal.targetAmount) * 100,
+    100
+  );
+  goal.achieved = goal.currentAmount >= goal.targetAmount;
+
+  res.json({ message: "Updated", goal });
+});
+
+// DELETE goal
+app.delete("/goals/:id", (req, res) => {
+  const id = Number(req.params.id);
+
+  const before = goals.length;
+  goals = goals.filter(g => g.id !== id);
+
+  if (before === goals.length)
+    return res.status(404).json({ error: "Goal not found" });
+
+  res.json({ message: "Deleted" });
+});
+
+//SUMMARY
+
+app.get("/summary/all", (req, res) => {
+  const totalWeeks = weeks.length;
+
+  const totalAllowance = weeks.reduce((a, w) => a + w.allowance, 0);
+  const totalSpent = weeks.reduce((a, w) => a + w.spent, 0);
+  const totalSaved = weeks.reduce((a, w) => a + w.saved, 0);
+
+  const weeksMetTarget = weeks.filter(w => w.metTarget).length;
+
+  res.json({
+    totalWeeks,
+    totalAllowance,
+    totalSpent,
+    totalSaved,
+    weeksMetTarget,
+    weeksMissed: totalWeeks - weeksMetTarget
+  });
+});
+
+// SERVER
 const PORT = process.env.PORT || 3000;
 
-// Middleware
-app.use(cors());
-app.use(express.json({ limit: '100mb' }));
-
-// In-memory data
-let movies = [];
-let reviews = [];
-let comments = [];
-let users = [];
-
-// ====================== ROUTES ======================
-app.get('/', (req, res) => {
-  res.send('Movie API is running! Try /movies');
-});
-
-// Get all movies
-app.get('/movies', (req, res) => {
-  res.json(movies);
-});
-
-// Get single movie
-app.get('/movies/:id', (req, res) => {
-  const movie = movies.find(m => m.id === parseInt(req.params.id));
-  if (movie) {
-    res.json(movie);
-  } else {
-    res.status(404).json({ message: "Movie not found" });
-  }
-});
-
-// Create movie
-app.post('/movies', (req, res) => {
-  if (!req.body.title) {
-    return res.status(400).json({ message: "Title is required" });
-  }
-  const movie = {
-    id: Date.now(),
-    title: req.body.title,
-    description: req.body.description || "",
-    whereToWatch: req.body.whereToWatch || [],
-    image: req.body.image || ""
-  };
-  movies.push(movie);
-  res.status(201).json(movie);  
-});
-
-// Update movie
-app.put('/movies/:id', (req, res) => {
-  const movie = movies.find(m => m.id === parseInt(req.params.id));
-  if (!movie) {
-    return res.status(404).json({ message: "Movie not found" });
-  }
-  const { title, description, whereToWatch, image } = req.body;
-  if (!title) {
-    return res.status(400).json({ message: "Title is required" });
-  }
-  movie.title = title;
-  movie.description = description || movie.description;
-  movie.whereToWatch = whereToWatch || movie.whereToWatch;
-  movie.image = image || movie.image;
-  res.json({
-    message: "Movie updated successfully",
-    movie
-  });
-});
-
-// Delete movie
-app.delete('/movies/:id', (req, res) => {
-  const index = movies.findIndex(m => m.id === parseInt(req.params.id));
-  if (index === -1) {
-    return res.status(404).json({ message: "Movie not found" });
-  }
-  movies.splice(index, 1);
-  res.json({ message: "Movie deleted successfully" });
-});
-
-// ====================== REVIEWS ======================
-// Get all reviews for a movie
-app.get('/reviews/:movieId', (req, res) => {
-  const movieReviews = reviews.filter(r => r.movieId === parseInt(req.params.movieId));
-  res.json(movieReviews);
-});
-
-// Create review
-app.post('/reviews', (req, res) => {
-  if (!req.body.movieId || !req.body.rating) {
-    return res.status(400).json({ message: "movieId and rating are required" });
-  }
-  const review = {
-    id: Date.now(),
-    movieId: parseInt(req.body.movieId),
-    user: req.body.user || "Anonymous",
-    rating: Number(req.body.rating),
-    text: req.body.text || ""
-  };
-  reviews.push(review);
-  res.status(201).json(review);
-});
-
-// Update review
-app.put('/reviews/:id', (req, res) => {
-  const review = reviews.find(r => r.id === parseInt(req.params.id));
-  if (!review) {
-    return res.status(404).json({ message: "Review not found" });
-  }
-  const { rating, text, user } = req.body;
-  if (rating === undefined) {
-    return res.status(400).json({ message: "Rating is required" });
-  }
-  review.rating = Number(rating);
-  review.text = text !== undefined ? text : review.text;
-  review.user = user || review.user;
-  res.json({
-    message: "Review updated successfully",
-    review
-  });
-});
-
-// Delete review
-app.delete('/reviews/:id', (req, res) => {
-  const index = reviews.findIndex(r => r.id === parseInt(req.params.id));
-  if (index === -1) {
-    return res.status(404).json({ message: "Review not found" });
-  }
-  reviews.splice(index, 1);
-  res.json({ message: "Review deleted successfully" });
-});
-
-// Average Rating
-app.get('/movies/:id/average-rating', (req, res) => {
-  const movieReviews = reviews.filter(r => r.movieId === parseInt(req.params.id));
-  if (movieReviews.length === 0) {
-    return res.json({ average: 0, message: "No reviews yet" });
-  }
-  const avg = movieReviews.reduce((sum, r) => sum + r.rating, 0) / movieReviews.length;
-  res.json({ average: Math.round(avg * 10) / 10 });
-});
-
-// 404 Handler
-app.use((req, res) => {
-  res.status(404).json({ message: "Route not found" });
-});
-
-// Start the server
-app.listen(PORT, () => {
-  console.log(`Movie API Server is running on http://localhost:${PORT}`);
-  console.log(`Open this link to test: http://localhost:${PORT}/movies`);
-});
+app.listen(PORT, () =>
+  console.log(`Server running on port ${PORT}`)
+);
